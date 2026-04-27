@@ -1,0 +1,6 @@
+node_modules/
+.env
+**/.env
+*.log
+**/sync-log.json
+.DS_Store

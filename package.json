@@ -1,0 +1,24 @@
+{
+  "name": "shopify-sync",
+  "version": "0.2.0",
+  "description": "YAML in, Shopify products out. Built for agency repeatability.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "shopify-sync": "./src/index.js"
+  },
+  "scripts": {
+    "sync": "node src/index.js sync",
+    "validate": "node src/index.js validate",
+    "diff": "node src/index.js diff"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "graphql-request": "^7.1.0",
+    "mime-types": "^2.1.35",
+    "yaml": "^2.5.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

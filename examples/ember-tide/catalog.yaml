@@ -1,0 +1,107 @@
+# Ember & Tide catalog — single source of truth.
+# Edit this file, then: npm run sync examples/ember-tide/catalog.yaml
+
+store: ember-tide.myshopify.com   # ← change to your *.myshopify.com
+
+defaults:
+  vendor: Ember & Tide
+  inventory_qty: 25
+
+products:
+  - title: The Signet Hoodie
+    type: Hoodie
+    price: 128
+    compare_at: 148
+    cost: 38
+    weight_grams: 780
+    colors: [Black, Ivory]
+    sizes: [XS, S, M, L, XL, XXL]
+    images: ./images/the-signet-hoodie/
+    tags: [hoodie, fleece, signature, embroidered, oversized]
+    google_category: "Apparel & Accessories > Clothing > Activewear"
+    gender: unisex
+    seo_title: "The Signet Hoodie — Heavyweight Fleece"
+    seo_description: "Heavyweight 14oz garment-dyed cotton fleece hoodie with embroidered signet. Black or Ivory."
+    description: |
+      Wear-tested through cold mornings and longer nights. The Signet is our heaviest piece — a 14oz brushed cotton fleece hoodie carrying the dual sigil of ember and tide on the back, circled in old-letter script.
+
+      ## Fabric
+      14oz garment-dyed brushed cotton fleece. 80% cotton, 20% recycled polyester. Pre-washed.
+
+      ## Fit
+      Oversized drop-shoulder. Take your usual size; size down for closer.
+
+      ## Care
+      Inside out, cold wash. Hang dry. Iron inside out only.
+
+      Soft as water. Burn like sunshine.
+
+  - title: The Signet Crewneck
+    type: Sweatshirt
+    price: 98
+    cost: 30
+    weight_grams: 620
+    colors: [Black, Ivory]
+    sizes: [XS, S, M, L, XL, XXL]
+    images: ./images/the-signet-crewneck/
+    tags: [crewneck, sweatshirt, fleece, signature]
+    google_category: "Apparel & Accessories > Clothing > Shirts & Tops"
+    gender: unisex
+    description: |
+      The quieter sibling to The Signet Hoodie. Same dual mark, said softer.
+
+      ## Fabric
+      12oz brushed cotton fleece. 80% cotton, 20% recycled polyester.
+
+      ## Fit
+      Drop-shoulder, relaxed body. True to size.
+
+  - title: The Mesh Knit Sweater
+    type: Sweater
+    price: 158
+    cost: 52
+    weight_grams: 470
+    sizes: [S/M, M/L, L/XL]
+    inventory_qty: 12
+    images: ./images/the-mesh-knit-sweater/
+    tags: [sweater, knit, mesh, oversized, limited, signature]
+    description: |
+      Open-knit cotton mesh in obsidian, hand-loomed and heavily oversized. Limited run.
+
+  - title: The Signet Tank
+    type: Tank
+    price: 48
+    cost: 14
+    weight_grams: 160
+    colors: [Black, White]
+    sizes: [XS, S, M, L, XL]
+    images: ./images/the-signet-tank/
+    tags: [tank, crop-top, signature, summer]
+    google_category: "Apparel & Accessories > Clothing > Shirts & Tops"
+    gender: female
+    description: |
+      Cropped tank in soft combed cotton. Front carries the full signet motif.
+
+  - title: The Ember & Tide Tee
+    type: T-Shirt
+    price: 42
+    cost: 13
+    weight_grams: 220
+    colors: [Black, White]
+    sizes: [XS, S, M, L, XL, XXL]
+    images: ./images/the-ember-tide-tee/
+    tags: [tee, t-shirt, basics, garment-dyed]
+    description: |
+      Garment-dyed combed cotton tee. Subtle chest wordmark with wave detail.
+
+  - title: The Signet Socks
+    type: Socks
+    price: 24
+    cost: 7
+    weight_grams: 125
+    sizes: [S/M, L/XL]
+    inventory_qty: 40
+    images: ./images/the-signet-socks/
+    tags: [socks, accessories, knee-high, signature]
+    description: |
+      Knee-high jacquard cotton socks with the wave-and-flame motif.
