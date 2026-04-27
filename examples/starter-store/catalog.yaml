@@ -1,0 +1,22 @@
+# Example Store Catalog
+store: yourstore.myshopify.com
+
+# Products list
+products:
+  - title: Classic T-Shirt
+    price: 32
+    colors: [Black, White, Navy]
+    sizes: [S, M, L, XL]
+    images: ./images/classic-tee/
+    type: Apparel
+    tags: [basics, t-shirts]
+    description: |
+      Premium cotton t-shirt. Perfect for everyday wear.
+
+  - title: Wool Beanie
+    price: 28
+    colors: [Black, Gray, Navy]
+    images: ./images/wool-beanie/
+    type: Accessories
+    tags: [winter, hats]
+    description: Warm wool beanie. One size fits most.
