@@ -1,0 +1,192 @@
+# Full Example Catalog
+# This demonstrates all features of shopify-catalog-yaml-sync
+
+store: yourstore.myshopify.com
+
+# Global defaults applied to all products
+defaults:
+  vendor: My Brand
+  inventory_qty: 25
+  weight_grams: 500
+
+# Global sync rules (what gets pushed to Shopify)
+# Comment this out to use safe defaults
+# sync:
+#   manage: [title, price, tags]           # Only sync these fields (allowlist)
+#   # OR
+#   ignore: [description, inventory]       # Never sync these fields (blocklist)
+
+products:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Example 1: Basic Product with Color + Size Variants
+  # ──────────────────────────────────────────────────────────────────────────
+  - title: Classic Cotton T-Shirt
+    handle: classic-tee                     # Auto-generated from title if omitted
+    price: 32
+    compare_at: 45                          # Original price (shows as strikethrough)
+    cost: 12                                # Your cost (for profit tracking)
+    weight_grams: 200
+
+    # Simple variant generation - creates all combinations
+    colors: [Black, White, Navy, Heather Gray]
+    sizes: [XS, S, M, L, XL, XXL]
+
+    # Images: name files like "01-black-front.png", "02-white-front.png"
+    # Tool auto-maps images to color variants based on filename
+    images: ./images/classic-tee/
+
+    type: T-Shirts
+    vendor: My Brand
+    tags: [basics, essentials, best-sellers]
+
+    description: |
+      Premium heavyweight cotton tee.
+
+      - 100% organic cotton
+      - Pre-shrunk
+      - Reinforced shoulder seams
+      - Side-seamed construction
+
+    seo_title: Classic Cotton T-Shirt | Sustainable Basics
+    seo_description: Premium heavyweight organic cotton t-shirt. Pre-shrunk, reinforced seams. Available in 4 colors, 6 sizes.
+
+    status: active                          # active | draft | archived
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Example 2: Product with Custom Options (not Color/Size)
+  # ──────────────────────────────────────────────────────────────────────────
+  - title: Custom Print Poster
+    price: 45
+
+    # Custom options instead of colors/sizes
+    options:
+      - name: Size
+        values: [12x18, 18x24, 24x36]
+      - name: Frame
+        values: [Unframed, Black Frame, White Frame, Wood Frame]
+      - name: Material
+        values: [Matte Paper, Glossy Paper, Canvas]
+
+    images: ./images/poster/
+    type: Prints
+    tags: [wall-art, customizable]
+
+    description: Museum-quality prints on archival paper.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Example 3: Product with Per-Product Sync Rules
+  # ──────────────────────────────────────────────────────────────────────────
+  - title: Limited Edition Hoodie
+    price: 128
+    colors: [Black, Ivory]
+    sizes: [S, M, L, XL]
+    images: ./images/limited-hoodie/
+
+    # Override global sync rules for this product only
+    sync:
+      manage: [price]                       # Only sync price for this product
+                                            # Everything else is locked (client manages in admin)
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Example 4: Product with Inventory Tracking
+  # ──────────────────────────────────────────────────────────────────────────
+  - title: Ceramic Mug
+    price: 24
+    inventory_qty: 100                      # Initial inventory (only set on create by default)
+    colors: [White, Black, Blue]
+    images: ./images/mug/
+    type: Accessories
+
+    description: Hand-thrown ceramic mug. Dishwasher safe.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Example 5: Single Variant Product (no options)
+  # ──────────────────────────────────────────────────────────────────────────
+  - title: Gift Card
+    price: 50
+    # No colors/sizes = single variant
+    images: ./images/gift-card/
+    type: Gift Cards
+    tags: [gifts]
+    description: Digital gift card delivered via email.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Example 6: Product with Google Shopping / SEO Optimization
+  # ──────────────────────────────────────────────────────────────────────────
+  - title: Performance Running Shorts
+    price: 58
+    colors: [Black, Navy, Gray]
+    sizes: [XS, S, M, L, XL]
+    images: ./images/running-shorts/
+    type: Athletic Wear
+    vendor: Athletic Co
+
+    # Google Shopping attributes
+    google_category: "Apparel & Accessories > Clothing > Activewear > Activewear Shorts"
+    gender: unisex
+
+    tags: [running, athletic, performance, summer]
+
+    seo_title: Men's & Women's Performance Running Shorts | Lightweight & Breathable
+    seo_description: Ultra-lightweight running shorts with moisture-wicking fabric. 4-way stretch, hidden pocket. Perfect for marathon training.
+
+    description: |
+      ## Technical Running Shorts
+
+      Built for serious runners:
+      - Moisture-wicking fabric
+      - 4-way stretch
+      - Hidden zippered pocket
+      - Reflective details
+      - Anti-chafe liner
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Example 7: Product with Custom SKU Prefix
+  # ──────────────────────────────────────────────────────────────────────────
+  - title: Wool Beanie
+    price: 35
+    colors: [Black, Gray, Navy, Burgundy]
+    sku_prefix: WNTR-BEANIE                 # Custom SKU prefix
+    images: ./images/beanie/
+    type: Accessories
+    tags: [winter, hats]
+    description: Chunky knit wool beanie. One size fits most.
+
+# ──────────────────────────────────────────────────────────────────────────
+# Collections (optional - for organizing products)
+# ──────────────────────────────────────────────────────────────────────────
+# collections:
+#   - title: New Arrivals
+#     handle: new-arrivals
+#     description: Latest products from our collection
+#     rules:
+#       - column: tag
+#         relation: equals
+#         condition: new-arrivals
+#     rule_logic: ANY                        # ANY | ALL
+
+# ──────────────────────────────────────────────────────────────────────────
+# SYNC BEHAVIOR REFERENCE
+# ──────────────────────────────────────────────────────────────────────────
+#
+# On FIRST PUSH (product doesn't exist in Shopify):
+#   → Everything from YAML is pushed
+#   → Images uploaded, inventory set, all fields created
+#
+# On UPDATES (product already exists):
+#   → By default: updates title, price, description, tags, etc.
+#   → Skips: inventory (ops team owns it), images (already uploaded)
+#   → Preserves: manual admin edits to skipped fields
+#
+# Sync Tokens (use in manage/ignore lists):
+#   Product fields:  title, description, vendor, type, tags, seo, status
+#   Variant fields:  price, compare_at, cost, weight, sku
+#   Operations:      images, variant_images, inventory, variants
+#
+# CLI Flags Override YAML Config:
+#   --force-images     → Re-upload images even if product has media
+#   --with-inventory   → Push inventory even on updates
+#   --skip-images      → Skip image upload
+#   --only-new         → Only create new products, never update
+#   --force            → Push even if Shopify has conflicts
+#   --dry-run          → Preview changes without making them
