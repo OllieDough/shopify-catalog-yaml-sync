@@ -11,14 +11,16 @@ import fs from 'fs/promises';
 import mime from 'mime-types';
 import { readImageFolder, pickVariantImage } from './images.js';
 import { SyncPolicy } from './sync-policy.js';
+import { StateManager } from './state.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-export async function syncCatalog({ shopify, catalog, log, dryRun = false, cliFlags = {} }) {
+export async function syncCatalog({ shopify, catalog, log, dryRun = false, cliFlags = {}, stateManager }) {
   const stats = {
     productsCreated: 0,
     productsUpdated: 0,
     productsSkipped: 0,
+    conflicts: 0,
     imagesUploaded: 0,
     imagesSkipped: 0,
     variantsMapped: 0,
@@ -48,6 +50,17 @@ export async function syncCatalog({ shopify, catalog, log, dryRun = false, cliFl
       continue;
     }
 
+    // Conflict detection: check if Shopify changed since our last push
+    if (mode === 'update' && existing && stateManager && !cliFlags.force) {
+      const hasConflict = stateManager.hasConflict(product.handle, existing.updatedAt);
+      if (hasConflict) {
+        log(`  ⚠ CONFLICT: Shopify updated since last push. Run 'pull' first or use --force to override.`);
+        stats.conflicts++;
+        stats.productsSkipped++;
+        continue;
+      }
+    }
+
     if (mode === 'create') {
       log(`  → CREATE (new product)`);
     } else {
@@ -69,6 +82,12 @@ export async function syncCatalog({ shopify, catalog, log, dryRun = false, cliFl
       if (mode === 'create') stats.productsCreated++;
       else stats.productsUpdated++;
       log(`  ✓ Synced (${result.variants.edges.length} variants)`);
+
+      // Record push in state
+      if (stateManager) {
+        const hash = StateManager.hashProduct(product);
+        stateManager.recordPush(product.handle, result, hash);
+      }
     } catch (err) {
       log(`  ✗ productSet failed: ${err.message}`);
       stats.errors.push({ handle: product.handle, error: err.message });
@@ -99,18 +118,21 @@ export async function syncCatalog({ shopify, catalog, log, dryRun = false, cliFl
       if (!images.length) {
         log(`  ○ Images: no folder or empty (${product.imagesDir || 'unset'})`);
       } else {
+        // Upload images with progress indication
+        log(`  ↑ Uploading ${images.length} images...`);
         for (const img of images) {
           try {
             const media = await uploadImage(shopify, result.id, img);
             uploaded.push({ ...img, mediaId: media.id });
             stats.imagesUploaded++;
+            process.stdout.write(`    ${uploaded.length}/${images.length} uploaded\r`);
             await sleep(200);
           } catch (err) {
-            log(`    ✗ ${img.filename}: ${err.message}`);
+            log(`\n    ✗ ${img.filename}: ${err.message}`);
             stats.errors.push({ handle: product.handle, file: img.filename, error: err.message });
           }
         }
-        log(`  ↑ Images: ${uploaded.length}/${images.length} uploaded`);
+        log(`\n  ✓ Images: ${uploaded.length}/${images.length} uploaded`);
       }
     } else if (skipImagesBecauseExisting) {
       log(`  ○ Images: skipped (product has ${existing.media.edges.length} existing — pass --force-images to re-upload)`);
@@ -143,6 +165,11 @@ export async function syncCatalog({ shopify, catalog, log, dryRun = false, cliFl
         }
       }
     }
+  }
+
+  // Save state after sync
+  if (stateManager) {
+    await stateManager.save();
   }
 
   stats.durationMs = Date.now() - start;

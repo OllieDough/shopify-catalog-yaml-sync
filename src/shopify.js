@@ -9,6 +9,7 @@ export class Shopify {
     if (!storeDomain || !adminToken) {
       throw new Error('Missing store domain or admin token');
     }
+    this.storeDomain = storeDomain;
     const url = `https://${storeDomain}/admin/api/${apiVersion}/graphql.json`;
     this.client = new GraphQLClient(url, {
       headers: { 'X-Shopify-Access-Token': adminToken },
@@ -22,6 +23,7 @@ export class Shopify {
           id
           title
           handle
+          updatedAt
           variants(first: 100) {
             edges {
               node {
@@ -50,6 +52,7 @@ export class Shopify {
             id
             handle
             title
+            updatedAt
             variants(first: 100) {
               edges {
                 node {
@@ -193,5 +196,103 @@ export class Shopify {
     });
     const errs = data.productVariantUpdate.userErrors;
     if (errs.length) throw new Error(`variantUpdate: ${JSON.stringify(errs)}`);
+  }
+
+  // Pull all products from Shopify (paginated)
+  async getAllProducts(log = () => {}) {
+    const query = gql`
+      query getProducts($cursor: String) {
+        products(first: 50, after: $cursor) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+          edges {
+            node {
+              id
+              title
+              handle
+              descriptionHtml
+              vendor
+              productType
+              tags
+              status
+              updatedAt
+              seo {
+                title
+                description
+              }
+              options {
+                name
+                optionValues {
+                  name
+                }
+              }
+              variants(first: 100) {
+                edges {
+                  node {
+                    id
+                    sku
+                    price
+                    compareAtPrice
+                    selectedOptions {
+                      name
+                      value
+                    }
+                    inventoryItem {
+                      id
+                      unitCost {
+                        amount
+                      }
+                      measurement {
+                        weight {
+                          value
+                          unit
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              media(first: 50) {
+                edges {
+                  node {
+                    ... on MediaImage {
+                      __typename
+                      id
+                      alt
+                      image {
+                        url
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    let allProducts = [];
+    let cursor = null;
+    let hasNextPage = true;
+    let page = 1;
+
+    while (hasNextPage) {
+      log(`  Fetching page ${page}...`);
+      const data = await this.client.request(query, { cursor });
+      const products = data.products.edges.map(e => e.node);
+      allProducts = allProducts.concat(products);
+
+      hasNextPage = data.products.pageInfo.hasNextPage;
+      cursor = data.products.pageInfo.endCursor;
+      page++;
+
+      // Rate limit
+      if (hasNextPage) await new Promise(r => setTimeout(r, 500));
+    }
+
+    return allProducts;
   }
 }

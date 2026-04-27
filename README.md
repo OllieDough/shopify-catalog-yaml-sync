@@ -1,6 +1,50 @@
-# shopify-sync (v0.3)
+# shopify-catalog-yaml-sync
 
-YAML in. Shopify products out. ~60 seconds for a full catalog. Re-runnable safely without trampling manual edits.
+**Bidirectional sync between YAML catalogs and Shopify.** Manage your product catalog in Git with full version control, branch for different stores, and sync changes both ways.
+
+Stop clicking through Shopify's admin. Use Git as your source of truth for product catalogs.
+
+```bash
+# Pull existing store into version control
+shopify-catalog-yaml-sync pull
+
+# Make changes in YAML, commit to Git
+git add catalog.yaml
+git commit -m "Update prices for Q1"
+
+# Push changes to Shopify
+shopify-catalog-yaml-sync sync
+
+# Create a branch for a different store variant
+git checkout -b store-variant-b
+# Edit catalog, push to different store...
+```
+
+## Key Features
+
+### 🔄 Bidirectional Sync
+- **Pull**: Download your entire Shopify store into YAML + images
+- **Push**: Sync YAML changes back to Shopify
+- **Conflict Detection**: Warns if Shopify changed since your last pull
+
+### 🎯 Smart Sync Control
+- Only update what changed (selective field sync)
+- Skip images if already uploaded (avoid duplicates)
+- Preserve manual admin edits (inventory, descriptions, etc.)
+- Per-product or global sync rules
+
+### 📦 Git-Based Workflow
+- Version control your product catalog
+- Branch for different store variants
+- Review changes with `git diff` before pushing
+- Rollback mistakes with `git revert`
+
+### ⚡ Performance
+- Parallel image downloads/uploads
+- Efficient pagination for large catalogs
+- Smart rate limiting
+
+## Quick Example
 
 ```yaml
 # catalog.yaml
@@ -17,12 +61,20 @@ products:
 ```
 
 ```bash
-npm run sync
+# Push to Shopify
+shopify-catalog-yaml-sync sync
 ```
 
-## What's new in v0.3 — Selective Sync
+## What's new in v0.3 — Bidirectional Sync
 
-The big upgrade. The tool no longer blindly overwrites everything on every run. Three layers of control:
+The major upgrade. This is now a **full bidirectional sync tool** with:
+
+1. **Pull command** — Download your entire Shopify store to YAML + images
+2. **State tracking** — Tracks what was last pushed/pulled for conflict detection
+3. **Conflict detection** — Warns if Shopify changed since your last push
+4. **Sync history** — See when products were last synced
+
+Plus all the selective sync features from before:
 
 ### Layer 1 — Safe defaults
 
@@ -187,18 +239,48 @@ products:
 
 ## Commands
 
+### Pull (Shopify → Local)
+
+```bash
+# Pull entire store into YAML + download all images
+shopify-catalog-yaml-sync pull
+
+# Pull without downloading images (faster, metadata only)
+shopify-catalog-yaml-sync pull --no-images
+
+# Pull specific catalog file
+shopify-catalog-yaml-sync pull examples/my-store/catalog.yaml
+```
+
+**First-time pull**: If `catalog.yaml` doesn't exist, set `SHOPIFY_STORE_DOMAIN=yourstore.myshopify.com` in `.env`.
+
+### Push (Local → Shopify)
+
+```bash
+# Push changes to Shopify
+shopify-catalog-yaml-sync sync
+
+# Preview changes without pushing (dry run)
+shopify-catalog-yaml-sync sync --dry-run
+
+# Force push despite conflicts
+shopify-catalog-yaml-sync sync --force
+
+# Push specific catalog
+shopify-catalog-yaml-sync sync examples/my-store/catalog.yaml
+```
+
+### Other Commands
+
 ```bash
 # Validate YAML structure (no API calls)
-npm run validate -- examples/ember-tide/catalog.yaml
+shopify-catalog-yaml-sync validate
 
 # Show what would change against the live store (read-only)
-npm run diff -- examples/ember-tide/catalog.yaml
+shopify-catalog-yaml-sync diff
 
-# Push (with selective sync defaults)
-npm run sync -- examples/ember-tide/catalog.yaml
-
-# Preview the push
-npm run sync -- examples/ember-tide/catalog.yaml --dry-run
+# View sync history
+shopify-catalog-yaml-sync history
 ```
 
 ## How re-runs interact with manual admin edits
@@ -211,25 +293,109 @@ npm run sync -- examples/ember-tide/catalog.yaml --dry-run
 | You add a new variant size to YAML, re-sync | **New variant created**, existing untouched |
 | You remove a variant size from YAML, re-sync | **Existing variant preserved** (default doesn't prune); add `manage: [variants]` to allow pruning |
 
-## Recommended patterns
+## Recommended Workflows
 
-**During launch / development:**
+### Initial Setup (Existing Store)
+
+```bash
+# 1. Pull entire store into version control
+shopify-catalog-yaml-sync pull
+
+# 2. Review what was downloaded
+cat catalog.yaml
+ls images/
+
+# 3. Commit to Git
+git add .
+git commit -m "Initial catalog snapshot"
+
+# 4. Make changes to YAML, push back
+# Edit catalog.yaml...
+shopify-catalog-yaml-sync sync
+```
+
+### Branching for Store Variants
+
+```bash
+# Main store
+git checkout main
+shopify-catalog-yaml-sync pull  # Get latest from main store
+
+# Create variant for different market
+git checkout -b store-canada
+# Edit catalog.yaml (change prices to CAD, adjust inventory, etc.)
+shopify-catalog-yaml-sync sync  # Push to canada.myshopify.com
+
+# Switch back to main
+git checkout main
+```
+
+### Handling Conflicts
+
+If someone edits products in Shopify admin while you're working:
+
+```bash
+# Try to push
+shopify-catalog-yaml-sync sync
+# ⚠ CONFLICT: Shopify updated since last push
+
+# Option 1: Pull their changes, merge manually
+shopify-catalog-yaml-sync pull
+git diff  # See what changed
+# Merge conflicts, then push
+shopify-catalog-yaml-sync sync
+
+# Option 2: Force push (overwrite their changes)
+shopify-catalog-yaml-sync sync --force
+```
+
+### During Development
+
 - Run with defaults. Edit freely in YAML, re-sync often.
+- Use `--dry-run` to preview changes before pushing.
 
-**After client handoff:**
+### After Client Handoff
+
 - Add `sync: { manage: [price, tags] }` to your global config so the tool only manages bulk-update-friendly fields. Client owns descriptions and inventory in admin.
+- Run periodic pulls to capture their manual changes.
 
-**Bulk-adding new products to live store:**
-- Use `--only-new`. Existing 50 products untouched, new 10 created.
+### Bulk Operations
+
+**Adding new products to live store:**
+```bash
+shopify-catalog-yaml-sync sync --only-new
+```
+Existing 50 products untouched, new 10 created.
 
 **Annual catalog refresh:**
-- Use `--force-images --with-inventory` to do a full re-sync.
+```bash
+shopify-catalog-yaml-sync sync --force-images --with-inventory
+```
+Full re-sync of everything.
+
+## State Tracking & Conflict Detection
+
+The tool maintains a `.shopify-sync/state.json` file (auto-created) that tracks:
+
+- When each product was last pushed/pulled
+- Shopify's `updatedAt` timestamp
+- Hash of what you last pushed
+
+This enables:
+
+- **Conflict detection**: Warns if Shopify changed since your last push
+- **Smart pull**: Only updates local YAML if Shopify is newer
+- **Sync history**: See when products were last modified
+
+**Recommendation**: Add `.shopify-sync/` to `.gitignore` (state is local to your machine).
 
 ## Troubleshooting
 
-- **"Variant not found by option values"** → option names changed in YAML vs live (e.g., "Color" vs "Colour"). Match exactly.
+- **"CONFLICT: Shopify updated since last push"** → Someone edited the product in Shopify admin. Run `pull` first to get their changes, or use `--force` to override.
+- **"Variant not found by option values"** → Option names changed in YAML vs live (e.g., "Color" vs "Colour"). Match exactly.
 - **"Throttled"** → Shopify rate limit. Tool paces itself; very large catalogs may need longer sleeps in `sync.js`.
-- **Images uploading every run** → product has no media yet, or you passed `--force-images`. Check `existing.media.edges.length` in the log.
+- **Images uploading every run** → Product has no media yet, or you passed `--force-images`. Check `existing.media.edges.length` in the log.
+- **"No catalog.yaml found" on first pull** → Set `SHOPIFY_STORE_DOMAIN=yourstore.myshopify.com` in `.env`.
 
 ## License
 

@@ -1,11 +1,11 @@
 {
-  "name": "shopify-sync",
-  "version": "0.2.0",
-  "description": "YAML in, Shopify products out. Built for agency repeatability.",
+  "name": "shopify-catalog-yaml-sync",
+  "version": "0.3.0",
+  "description": "Bidirectional sync between YAML catalogs and Shopify. Built for agency repeatability with Git-based version control.",
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "shopify-sync": "./src/index.js"
+    "shopify-catalog-yaml-sync": "./src/index.js"
   },
   "scripts": {
     "sync": "node src/index.js sync",

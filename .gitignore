@@ -4,3 +4,6 @@ node_modules/
 *.log
 **/sync-log.json
 .DS_Store
+
+# State tracking (local to each machine)
+**/.shopify-sync/

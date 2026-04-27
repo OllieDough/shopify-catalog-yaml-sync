@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { loadCatalog } from './catalog.js';
 import { Shopify } from './shopify.js';
 import { syncCatalog } from './sync.js';
+import { pullCatalog } from './pull.js';
+import { StateManager } from './state.js';
 
 async function main() {
   const [, , command, ...rest] = process.argv;
@@ -22,6 +24,8 @@ async function main() {
     withInventory: flags.has('--with-inventory'),
     skipInventory: flags.has('--skip-inventory'),
     dryRun: flags.has('--dry-run'),
+    force: flags.has('--force'),
+    noImages: flags.has('--no-images'),
   };
 
   const cat = positional[0] || './catalog.yaml';
@@ -34,6 +38,8 @@ async function main() {
     case 'validate': return cmdValidate(cat);
     case 'diff':     return cmdDiff(cat);
     case 'sync':     return cmdSync(cat, cliFlags);
+    case 'pull':     return cmdPull(cat, cliFlags);
+    case 'history':  return cmdHistory(cat);
     default:
       console.error(`Unknown command: ${command}`);
       printHelp();
@@ -43,16 +49,22 @@ async function main() {
 
 function printHelp() {
   console.log(`
-shopify-sync — YAML in, Shopify products out.
+shopify-catalog-yaml-sync — Bidirectional sync between YAML catalogs and Shopify.
 
 Usage:
-  shopify-sync sync [catalog.yaml] [flags]
-  shopify-sync validate [catalog.yaml]
-  shopify-sync diff [catalog.yaml]
+  shopify-catalog-yaml-sync pull [catalog.yaml] [flags]       # Download from Shopify → YAML
+  shopify-catalog-yaml-sync sync [catalog.yaml] [flags]       # Push YAML → Shopify
+  shopify-catalog-yaml-sync validate [catalog.yaml]           # Validate YAML structure
+  shopify-catalog-yaml-sync diff [catalog.yaml]               # Preview changes
+  shopify-catalog-yaml-sync history [catalog.yaml]            # View sync history
 
-Sync flags (Pattern C — selective sync):
+Pull flags:
+  --no-images          Skip downloading product images
+
+Sync flags (selective sync):
   --dry-run            Preview without making API calls
   --only-new           Only create new products; never update existing ones
+  --force              Push even if Shopify has conflicting changes
   --force-images       Re-upload images even if product already has media
   --skip-images        Skip image upload entirely this run
   --with-inventory     Push inventory quantities (skipped by default on updates)
@@ -61,11 +73,20 @@ Sync flags (Pattern C — selective sync):
 Auth: set SHOPIFY_ADMIN_TOKEN in .env (root) or in the same dir as the catalog.
 
 Examples:
-  shopify-sync sync                                       # uses ./catalog.yaml
-  shopify-sync sync examples/ember-tide/catalog.yaml
-  shopify-sync sync --dry-run                             # safe preview
-  shopify-sync sync --only-new                            # add new products only
-  shopify-sync sync --force-images --with-inventory       # full re-sync
+  # Initial setup: pull existing store into version control
+  shopify-catalog-yaml-sync pull
+
+  # Make changes to YAML, then push
+  shopify-catalog-yaml-sync sync
+
+  # Preview before pushing
+  shopify-catalog-yaml-sync sync --dry-run
+
+  # If someone edited products in Shopify admin, pull those changes
+  shopify-catalog-yaml-sync pull
+
+  # Force push despite conflicts
+  shopify-catalog-yaml-sync sync --force
 `);
 }
 
@@ -96,6 +117,10 @@ async function cmdDiff(catalogPath) {
 async function cmdSync(catalogPath, cliFlags) {
   const catalog = await loadCatalog(catalogPath);
   const shopify = makeClient(catalog.store, catalogPath);
+  const catalogDir = path.dirname(path.resolve(catalogPath));
+  const stateManager = new StateManager(catalogDir);
+  await stateManager.load();
+
   if (cliFlags.dryRun) console.log('🟡 DRY RUN — no changes will be made\n');
   console.log(`📦 ${catalog.products.length} products → ${catalog.store}`);
 
@@ -109,6 +134,7 @@ async function cmdSync(catalogPath, cliFlags) {
     shopify, catalog, log: console.log,
     dryRun: cliFlags.dryRun,
     cliFlags,
+    stateManager,
   });
 
   console.log('\n────────────────────');
@@ -116,6 +142,7 @@ async function cmdSync(catalogPath, cliFlags) {
   console.log(`   Created:        ${stats.productsCreated}`);
   console.log(`   Updated:        ${stats.productsUpdated}`);
   console.log(`   Skipped:        ${stats.productsSkipped}`);
+  if (stats.conflicts) console.log(`   Conflicts:      ${stats.conflicts} (use --force to override or pull first)`);
   console.log(`   Images uploaded: ${stats.imagesUploaded}`);
   if (stats.imagesSkipped) console.log(`   Images skipped:  ${stats.imagesSkipped} (already on product)`);
   console.log(`   Variant images:  ${stats.variantsMapped}`);
@@ -125,7 +152,7 @@ async function cmdSync(catalogPath, cliFlags) {
   }
 
   // Save log next to catalog
-  const logPath = path.join(path.dirname(path.resolve(catalogPath)), 'sync-log.json');
+  const logPath = path.join(catalogDir, 'sync-log.json');
   await fs.writeFile(logPath, JSON.stringify({
     timestamp: new Date().toISOString(),
     catalog: catalogPath,
@@ -133,6 +160,74 @@ async function cmdSync(catalogPath, cliFlags) {
     ...stats,
   }, null, 2));
   console.log(`📝 Log: ${logPath}`);
+}
+
+async function cmdPull(catalogPath, cliFlags) {
+  // For pull, we need the store domain but don't need a full catalog yet
+  // So we'll either:
+  // 1. Load existing catalog to get store domain
+  // 2. Or require SHOPIFY_STORE_DOMAIN env var for first-time pulls
+
+  let storeDomain, catalogDir;
+
+  try {
+    const catalog = await loadCatalog(catalogPath);
+    storeDomain = catalog.store;
+    catalogDir = path.dirname(path.resolve(catalogPath));
+  } catch {
+    // Catalog doesn't exist yet — first pull
+    storeDomain = process.env.SHOPIFY_STORE_DOMAIN;
+    if (!storeDomain) {
+      console.error('No catalog.yaml found. Set SHOPIFY_STORE_DOMAIN env var for first pull.');
+      process.exit(1);
+    }
+    catalogDir = path.dirname(path.resolve(catalogPath));
+  }
+
+  const shopify = makeClient(storeDomain, catalogPath);
+  const stateManager = new StateManager(catalogDir);
+  await stateManager.load();
+
+  console.log(`📥 Pulling products from ${storeDomain}...`);
+
+  const stats = await pullCatalog({
+    shopify,
+    outputPath: path.resolve(catalogPath),
+    log: console.log,
+    downloadImages: !cliFlags.noImages,
+    stateManager,
+  });
+
+  console.log('\n────────────────────');
+  console.log(`✅ Done in ${(stats.durationMs / 1000).toFixed(1)}s`);
+  console.log(`   Products:       ${stats.productsDownloaded}`);
+  console.log(`   Images:         ${stats.imagesDownloaded}`);
+  if (stats.errors.length) {
+    console.log(`   Errors:         ${stats.errors.length}`);
+  }
+}
+
+async function cmdHistory(catalogPath) {
+  const catalogDir = path.dirname(path.resolve(catalogPath));
+  const stateManager = new StateManager(catalogDir);
+  await stateManager.load();
+
+  const history = stateManager.getHistory();
+
+  if (!history.length) {
+    console.log('No sync history yet. Run `sync` or `pull` first.');
+    return;
+  }
+
+  console.log(`\n📊 Sync history (${history.length} products)\n`);
+  console.log('Handle'.padEnd(30) + 'Last Pushed'.padEnd(25) + 'Last Pulled');
+  console.log('─'.repeat(80));
+
+  for (const entry of history) {
+    const pushed = entry.lastPushed ? new Date(entry.lastPushed).toLocaleString() : 'never';
+    const pulled = entry.lastPulled ? new Date(entry.lastPulled).toLocaleString() : 'never';
+    console.log(entry.handle.padEnd(30) + pushed.padEnd(25) + pulled);
+  }
 }
 
 function makeClient(storeDomain, catalogPath) {
